@@ -5,6 +5,8 @@ import Header from "../components/Header"; // Make sure the path is correct
 export default function KnowledgeHub() {
   const [query, setQuery] = useState("");
   const [community, setCommunity] = useState("");
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [solutions, setSolutions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showSolutions, setShowSolutions] = useState(false);
@@ -12,12 +14,19 @@ export default function KnowledgeHub() {
 
   const BACKEND_API_URL = "http://localhost:8000/ask";
 
-  const callOpenAI = async (query, community) => {
+  const callOpenAI = async (query, community, imageFile) => {
     try {
+      const formData = new FormData();
+      formData.append("query", query);
+      formData.append("community", community || "");
+      if (imageFile) {
+        formData.append("image", imageFile);
+      }
+
       const response = await fetch(BACKEND_API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query, community: community || "" }),
+        body: formData,
+        // Don't set Content-Type header - let browser set it with boundary
       });
 
       if (!response.ok) {
@@ -36,33 +45,104 @@ export default function KnowledgeHub() {
     }
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image size should be less than 5MB");
+        return;
+      }
+      setImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImage(null);
+    setImagePreview(null);
+  };
+
   const parseSolutions = (aiResponse) => {
-    const lines = aiResponse.split("\n").filter((line) => line.trim());
+    console.log("AI Response:", aiResponse); // Debug log
+    
+    const lines = aiResponse.split("\n");
     const solutions = [];
     let current = null;
+    let currentStepText = "";
 
     for (const line of lines) {
       const trimmed = line.trim();
-      const match = trimmed.match(/^(Solution\s*\d+):?\s*(.+)/i);
-
-      if (match) {
-        if (current && current.steps.length > 0) solutions.push(current);
-        current = { title: match[2].trim(), steps: [] };
+      if (!trimmed) continue; // Skip empty lines
+      
+      // Match "Solution 1:", "Solution 2:", etc.
+      const solutionMatch = trimmed.match(/^Solution\s+(\d+):\s*(.+)/i);
+      
+      if (solutionMatch) {
+        // Save previous step if exists
+        if (current && currentStepText) {
+          current.steps.push(currentStepText.trim());
+          currentStepText = "";
+        }
+        // Save previous solution if exists
+        if (current) {
+          solutions.push(current);
+        }
+        // Start new solution
+        current = { 
+          title: solutionMatch[2].trim(), 
+          steps: [] 
+        };
       } else if (current) {
-        current.steps.push(trimmed);
+        // Match "Step X:" format
+        const stepMatch = trimmed.match(/^Step\s+(\d+):\s*(.+)/i);
+        
+        if (stepMatch) {
+          // Save previous step if exists
+          if (currentStepText) {
+            current.steps.push(currentStepText.trim());
+          }
+          // Start new step with "Step X: " prefix
+          currentStepText = `Step ${stepMatch[1]}: ${stepMatch[2].trim()}`;
+        } else if (trimmed.length > 0) {
+          // This is a continuation of the current step
+          if (currentStepText) {
+            currentStepText += " " + trimmed;
+          } else {
+            // If no step started yet, treat as step content
+            currentStepText = trimmed;
+          }
+        }
       }
     }
 
-    if (current && current.steps.length > 0) solutions.push(current);
-
-    while (solutions.length < 4) {
-      solutions.push({
-        title: `Additional Solution ${solutions.length + 1}`,
-        steps: ["Step 1: AI is generating more solutions..."],
-      });
+    // Don't forget the last step and solution
+    if (current) {
+      if (currentStepText) {
+        current.steps.push(currentStepText.trim());
+      }
+      if (current.steps.length > 0) {
+        solutions.push(current);
+      }
     }
 
-    return solutions.slice(0, 4);
+    console.log("Parsed Solutions:", solutions); // Debug log
+
+    // If we got less than 4 solutions, something went wrong
+    if (solutions.length === 0) {
+      return [{
+        title: "Error Parsing Response",
+        steps: [
+          "Step 1: The AI response couldn't be parsed correctly.",
+          "Step 2: Raw response: " + aiResponse.substring(0, 200) + "..."
+        ]
+      }];
+    }
+
+    return solutions;
   };
 
   const processQuery = async () => {
@@ -75,10 +155,20 @@ export default function KnowledgeHub() {
     setError("");
 
     try {
-      const aiResponse = await callOpenAI(query, community);
+      console.log("Sending query:", { query, community, hasImage: !!image });
+      
+      const aiResponse = await callOpenAI(query, community, image);
+      
+      console.log("Received AI response:", aiResponse);
+      
       if (!aiResponse) throw new Error("Empty response from AI");
 
       const parsed = parseSolutions(aiResponse);
+      
+      if (parsed.length === 0) {
+        throw new Error("No solutions could be parsed from AI response");
+      }
+      
       setSolutions(parsed);
       setShowSolutions(true);
 
@@ -89,6 +179,7 @@ export default function KnowledgeHub() {
         });
       }, 200);
     } catch (err) {
+      console.error("Error in processQuery:", err);
       setError(err.message);
       alert(`Error: ${err.message}`);
     } finally {
@@ -99,6 +190,8 @@ export default function KnowledgeHub() {
   const askAnother = () => {
     setQuery("");
     setCommunity("");
+    setImage(null);
+    setImagePreview(null);
     setShowSolutions(false);
     setSolutions([]);
     setError("");
@@ -140,6 +233,30 @@ export default function KnowledgeHub() {
               placeholder="Type your query or error..."
               className="input textarea"
             />
+          </div>
+
+          {/* Image Upload */}
+          <div className="field">
+            <label className="image-upload-label">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="image-input"
+              />
+              <span className="upload-text">
+                📎 {image ? "Change Image" : "Attach Screenshot (Optional)"}
+              </span>
+            </label>
+            
+            {imagePreview && (
+              <div className="image-preview-container">
+                <img src={imagePreview} alt="Preview" className="image-preview" />
+                <button onClick={removeImage} className="remove-image-btn">
+                  ✕ Remove
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Get Workarounds Button */}

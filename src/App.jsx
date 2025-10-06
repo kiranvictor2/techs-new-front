@@ -5,14 +5,29 @@ import Home from "./pages/Home";
 import Wallet from "./pages/Wallet";
 import Query from "./pages/Query";
 import Community from "./pages/Community";
+import Login from "./pages/login"; // 👈 added
 import "./style.css";
 
 export default function App() {
   const [activePage, setActivePage] = useState("home");
+  const [user, setUser] = useState(localStorage.getItem("userEmail") || null);
+
+  const handleLogin = (email) => {
+    setUser(email);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("userEmail");
+    setUser(null);
+  };
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   return (
     <div className="app-container">
-      <Header />
+      <Header onLogout={handleLogout} />
       <div className="container">
         <Sidebar activePage={activePage} setActivePage={setActivePage} />
         <div className="main-content">
