@@ -1,32 +1,93 @@
-import React, { useState } from "react";
-import "../../src/styles.css";
-import Header from "../components/Header"; // Make sure the path is correct
+import React, { useState, useEffect, useRef } from "react";
 
-export default function KnowledgeHub() {
+export default function Query() {
   const [query, setQuery] = useState("");
   const [community, setCommunity] = useState("");
-  const [image, setImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [solutions, setSolutions] = useState([]);
+  const [communitySearch, setCommunitySearch] = useState("");
+  const [communities, setCommunities] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [images, setImages] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
+  const [workarounds, setWorkarounds] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [showSolutions, setShowSolutions] = useState(false);
+  const [showWorkarounds, setShowWorkarounds] = useState(false);
   const [error, setError] = useState("");
+  const dropdownRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const BACKEND_API_URL = "http://localhost:8000/ask";
+  const COMMUNITIES_API_URL = "http://localhost:8000/communities";
+  const MAX_IMAGES = 5;
 
-  const callOpenAI = async (query, community, imageFile) => {
+  // Get community from sessionStorage on mount
+  useEffect(() => {
+    const checkForCommunity = () => {
+      const selectedCommunity = sessionStorage.getItem('selectedCommunity');
+      if (selectedCommunity && selectedCommunity !== community) {
+        setCommunity(selectedCommunity);
+        setCommunitySearch(selectedCommunity);
+        sessionStorage.removeItem('selectedCommunity');
+      }
+    };
+
+    checkForCommunity();
+    const interval = setInterval(checkForCommunity, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch communities from database
+  useEffect(() => {
+    const fetchCommunities = async () => {
+      try {
+        const response = await fetch(
+          `${COMMUNITIES_API_URL}?search=${encodeURIComponent(communitySearch)}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setCommunities(data);
+        }
+      } catch (err) {
+        console.error("Error fetching communities:", err);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      fetchCommunities();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [communitySearch]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const callOpenAI = async (query, community, imageFiles) => {
     try {
       const formData = new FormData();
       formData.append("query", query);
       formData.append("community", community || "");
-      if (imageFile) {
-        formData.append("image", imageFile);
+      
+      const userEmail = localStorage.getItem("userEmail");
+      if (userEmail) {
+        formData.append("user", userEmail);
       }
+      
+      imageFiles.forEach((file) => {
+        formData.append("images", file);
+      });
 
       const response = await fetch(BACKEND_API_URL, {
         method: "POST",
         body: formData,
-        // Don't set Content-Type header - let browser set it with boundary
       });
 
       if (!response.ok) {
@@ -46,103 +107,102 @@ export default function KnowledgeHub() {
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+    const files = Array.from(e.target.files);
+    
+    if (images.length + files.length > MAX_IMAGES) {
+      alert(`Maximum ${MAX_IMAGES} images allowed. You can add ${MAX_IMAGES - images.length} more.`);
+      return;
+    }
+
+    for (const file of files) {
       if (file.size > 5 * 1024 * 1024) {
-        alert("Image size should be less than 5MB");
+        alert(`Image "${file.name}" is too large. Maximum size is 5MB.`);
         return;
       }
-      setImage(file);
+    }
+
+    const newImages = [...images, ...files];
+    setImages(newImages);
+
+    const newPreviews = [...imagePreviews];
+    files.forEach((file) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result);
+        newPreviews.push(reader.result);
+        setImagePreviews([...newPreviews]);
       };
       reader.readAsDataURL(file);
-    }
+    });
   };
 
-  const removeImage = () => {
-    setImage(null);
-    setImagePreview(null);
+  const removeImage = (index) => {
+    const newImages = images.filter((_, i) => i !== index);
+    const newPreviews = imagePreviews.filter((_, i) => i !== index);
+    setImages(newImages);
+    setImagePreviews(newPreviews);
   };
 
-  const parseSolutions = (aiResponse) => {
-    console.log("AI Response:", aiResponse); // Debug log
+  const parseWorkarounds = (aiResponse) => {
+    console.log("AI Response:", aiResponse);
     
-    const lines = aiResponse.split("\n");
-    const solutions = [];
-    let current = null;
-    let currentStepText = "";
+    const workaroundSections = aiResponse.split(/(?=Workaround \d+:)/);
+    const workarounds = [];
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue; // Skip empty lines
-      
-      // Match "Solution 1:", "Solution 2:", etc.
-      const solutionMatch = trimmed.match(/^Solution\s+(\d+):\s*(.+)/i);
-      
+    for (const section of workaroundSections) {
+      const trimmed = section.trim();
+      if (!trimmed || !trimmed.startsWith('Workaround')) continue;
+
+      const workaround = {
+        problemStatement: "",
+        rootCause: "",
+        steps: [],
+        references: []
+      };
+
+      const problemMatch = trimmed.match(/Problem Statement:\s*([\s\S]*?)(?=Root Cause:|$)/i);
+      if (problemMatch) {
+        workaround.problemStatement = problemMatch[1].trim();
+      }
+
+      const rootCauseMatch = trimmed.match(/Root Cause:\s*([\s\S]*?)(?=Solution:|$)/i);
+      if (rootCauseMatch) {
+        workaround.rootCause = rootCauseMatch[1].trim();
+      }
+
+      const solutionMatch = trimmed.match(/Solution:\s*([\s\S]*?)(?=References:|$)/i);
       if (solutionMatch) {
-        // Save previous step if exists
-        if (current && currentStepText) {
-          current.steps.push(currentStepText.trim());
-          currentStepText = "";
-        }
-        // Save previous solution if exists
-        if (current) {
-          solutions.push(current);
-        }
-        // Start new solution
-        current = { 
-          title: solutionMatch[2].trim(), 
-          steps: [] 
-        };
-      } else if (current) {
-        // Match "Step X:" format
-        const stepMatch = trimmed.match(/^Step\s+(\d+):\s*(.+)/i);
+        const solutionText = solutionMatch[1];
+        const stepMatches = solutionText.match(/Step \d+:.*?(?=Step \d+:|$)/gs);
         
-        if (stepMatch) {
-          // Save previous step if exists
-          if (currentStepText) {
-            current.steps.push(currentStepText.trim());
-          }
-          // Start new step with "Step X: " prefix
-          currentStepText = `Step ${stepMatch[1]}: ${stepMatch[2].trim()}`;
-        } else if (trimmed.length > 0) {
-          // This is a continuation of the current step
-          if (currentStepText) {
-            currentStepText += " " + trimmed;
-          } else {
-            // If no step started yet, treat as step content
-            currentStepText = trimmed;
-          }
+        if (stepMatches) {
+          workaround.steps = stepMatches.map(step => step.trim());
         }
       }
+
+      const referencesMatch = trimmed.match(/References:\s*([\s\S]*?)(?=---|$)/i);
+      if (referencesMatch) {
+        const refText = referencesMatch[1].trim();
+        const refLines = refText.split('\n').filter(line => line.trim());
+        workaround.references = refLines.map(ref => ref.trim());
+      }
+
+      if (workaround.problemStatement || workaround.steps.length > 0) {
+        workarounds.push(workaround);
+      }
     }
 
-    // Don't forget the last step and solution
-    if (current) {
-      if (currentStepText) {
-        current.steps.push(currentStepText.trim());
-      }
-      if (current.steps.length > 0) {
-        solutions.push(current);
-      }
-    }
+    console.log("Parsed Workarounds:", workarounds);
 
-    console.log("Parsed Solutions:", solutions); // Debug log
-
-    // If we got less than 4 solutions, something went wrong
-    if (solutions.length === 0) {
+    if (workarounds.length === 0) {
       return [{
-        title: "Error Parsing Response",
-        steps: [
-          "Step 1: The AI response couldn't be parsed correctly.",
-          "Step 2: Raw response: " + aiResponse.substring(0, 200) + "..."
-        ]
+        problemStatement: "Error Parsing Response",
+        rootCause: "The AI response couldn't be parsed correctly.",
+        steps: ["Raw response: " + aiResponse.substring(0, 200) + "..."],
+        references: []
       }];
     }
 
-    return solutions;
+    return workarounds;
   };
 
   const processQuery = async () => {
@@ -155,25 +215,25 @@ export default function KnowledgeHub() {
     setError("");
 
     try {
-      console.log("Sending query:", { query, community, hasImage: !!image });
+      console.log("Sending query:", { query, community, imageCount: images.length });
       
-      const aiResponse = await callOpenAI(query, community, image);
+      const aiResponse = await callOpenAI(query, community, images);
       
       console.log("Received AI response:", aiResponse);
       
       if (!aiResponse) throw new Error("Empty response from AI");
 
-      const parsed = parseSolutions(aiResponse);
+      const parsed = parseWorkarounds(aiResponse);
       
       if (parsed.length === 0) {
-        throw new Error("No solutions could be parsed from AI response");
+        throw new Error("No workarounds could be parsed from AI response");
       }
       
-      setSolutions(parsed);
-      setShowSolutions(true);
+      setWorkarounds(parsed);
+      setShowWorkarounds(true);
 
       setTimeout(() => {
-        document.getElementById("solutionsSection")?.scrollIntoView({
+        document.getElementById("workaroundsSection")?.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
@@ -190,114 +250,438 @@ export default function KnowledgeHub() {
   const askAnother = () => {
     setQuery("");
     setCommunity("");
-    setImage(null);
-    setImagePreview(null);
-    setShowSolutions(false);
-    setSolutions([]);
+    setCommunitySearch("");
+    setImages([]);
+    setImagePreviews([]);
+    setShowWorkarounds(false);
+    setWorkarounds([]);
     setError("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const handleCommunitySelect = (communityName) => {
+    setCommunity(communityName);
+    setCommunitySearch(communityName);
+    setShowDropdown(false);
+  };
+
   return (
-    <div className="page">
-      <div className="container">
-        {/* Header */}
-        <Header />
-
-        {/* Content */}
-        <div className="content">
-          {/* Community Selection */}
-          <div className="field">
-            <select
-              value={community}
-              onChange={(e) => setCommunity(e.target.value)}
-              className="input"
-            >
-              <option value="">Select Community (Java, SAP ABAP, etc.)</option>
-              <option value="java">Java</option>
-              <option value="sap">SAP ABAP</option>
-              <option value="python">Python</option>
-              <option value="javascript">JavaScript</option>
-              <option value="react">React</option>
-              <option value="nodejs">Node.js</option>
-              <option value="dotnet">.NET</option>
-              <option value="sql">SQL</option>
-            </select>
-          </div>
-
-          {/* Query Input */}
-          <div className="field">
-            <textarea
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Type your query or error..."
-              className="input textarea"
-            />
-          </div>
-
-          {/* Image Upload */}
-          <div className="field">
-            <label className="image-upload-label">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="image-input"
-              />
-              <span className="upload-text">
-                📎 {image ? "Change Image" : "Attach Screenshot (Optional)"}
-              </span>
-            </label>
-            
-            {imagePreview && (
-              <div className="image-preview-container">
-                <img src={imagePreview} alt="Preview" className="image-preview" />
-                <button onClick={removeImage} className="remove-image-btn">
-                  ✕ Remove
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Get Workarounds Button */}
-          <button
-            onClick={processQuery}
+    <div style={styles.page}>
+      <h1 style={styles.pageTitle}>Ask a Query</h1>
+      
+      <div style={styles.content}>
+        {/* Community Selection with Autocomplete */}
+        <div style={styles.field} ref={dropdownRef}>
+          <input
+            type="text"
+            value={communitySearch}
+            onChange={(e) => {
+              setCommunitySearch(e.target.value);
+              setShowDropdown(true);
+            }}
+            onFocus={() => setShowDropdown(true)}
+            placeholder="Search community (Java, SAP ABAP, Python, etc.)"
+            style={styles.input}
             disabled={isLoading}
-            className={`button ${isLoading ? "disabled" : ""}`}
-          >
-            {isLoading ? "Getting AI Solutions..." : "Get Workarounds"}
-          </button>
-
-          {/* Error */}
-          {error && <div className="error">{error}</div>}
-
-          {/* Solutions */}
-          {showSolutions && (
-            <div id="solutionsSection" className="solutions">
-              <h2>Solutions:</h2>
-              {solutions.map((s, i) => (
+          />
+          
+          {showDropdown && communities.length > 0 && (
+            <div style={styles.dropdown}>
+              {communities.map((c, index) => (
                 <div
-                  key={i}
-                  className="solution-card"
-                  style={{ animationDelay: `${i * 0.1}s` }}
+                  key={index}
+                  style={styles.dropdownItem}
+                  onClick={() => handleCommunitySelect(c.name)}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f0f0'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
                 >
-                  <h3>
-                    ✅ Solution {i + 1}: {s.title}
-                  </h3>
-                  <ul>
-                    {s.steps.map((step, j) => (
-                      <li key={j}>{step}</li>
-                    ))}
-                  </ul>
+                  {c.name}
                 </div>
               ))}
-              <button onClick={askAnother} className="button ask">
-                Ask Another Query
+            </div>
+          )}
+          
+          {community && (
+            <div style={styles.selectedCommunity}>
+              Selected: <strong>{community}</strong>
+              <button
+                onClick={() => {
+                  setCommunity("");
+                  setCommunitySearch("");
+                }}
+                style={styles.clearBtn}
+              >
+                ✕
               </button>
             </div>
           )}
         </div>
+
+        {/* Query Input with Integrated Attachment Button */}
+        <div style={styles.field}>
+          <div style={styles.textareaWrapper}>
+            <textarea
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Type your query or error..."
+              style={styles.textareaWithButton}
+              disabled={isLoading}
+            />
+            
+            {/* Hidden File Input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              style={{ display: 'none' }}
+              multiple
+              disabled={isLoading || images.length >= MAX_IMAGES}
+            />
+            
+            {/* Attachment Button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={styles.attachButton}
+              disabled={isLoading || images.length >= MAX_IMAGES}
+              title={images.length >= MAX_IMAGES ? `Maximum ${MAX_IMAGES} images reached` : 'Attach screenshots'}
+            >
+              <svg 
+                width="20" 
+                height="20" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2"
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              >
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+              {images.length > 0 && (
+                <span style={styles.imageCount}>{images.length}</span>
+              )}
+            </button>
+          </div>
+          
+          {/* Image Previews */}
+          {imagePreviews.length > 0 && (
+            <div style={styles.imagePreviewsContainer}>
+              {imagePreviews.map((preview, index) => (
+                <div key={index} style={styles.imagePreviewWrapper}>
+                  <img src={preview} alt={`Preview ${index + 1}`} style={styles.imagePreview} />
+                  <button 
+                    onClick={() => removeImage(index)} 
+                    style={styles.removeImageBtn}
+                    disabled={isLoading}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Get Workarounds Button */}
+        <button
+          onClick={processQuery}
+          disabled={isLoading}
+          style={{...styles.button, ...(isLoading ? styles.buttonDisabled : {})}}
+        >
+          {isLoading ? "Getting AI Solutions..." : "Get Workarounds"}
+        </button>
+
+        {/* Loading Screen */}
+        {isLoading && (
+          <div style={styles.loadingScreen}>
+            <div style={styles.loadingSpinner}></div>
+            <p style={styles.loadingText}>Analyzing your query...</p>
+            <p style={styles.loadingSubtext}>This may take a few moments</p>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && <div style={styles.error}>{error}</div>}
+
+        {/* Workarounds */}
+        {showWorkarounds && (
+          <div id="workaroundsSection" style={styles.solutions}>
+            <h2>Workarounds:</h2>
+            {workarounds.map((w, i) => (
+              <div key={i} style={styles.solutionCard}>
+                <h3>Workaround {i + 1}:</h3>
+                
+                {w.problemStatement && (
+                  <div style={styles.workaroundSection}>
+                    <h4>Problem Statement:</h4>
+                    <p>{w.problemStatement}</p>
+                  </div>
+                )}
+                
+                {w.rootCause && (
+                  <div style={styles.workaroundSection}>
+                    <h4>Root Cause:</h4>
+                    <p>{w.rootCause}</p>
+                  </div>
+                )}
+                
+                {w.steps.length > 0 && (
+                  <div style={styles.workaroundSection}>
+                    <h4>Solution:</h4>
+                    <ul>
+                      {w.steps.map((step, j) => (
+                        <div key={j}>{step}</div>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {w.references.length > 0 && (
+                  <div style={styles.workaroundSection}>
+                    <h4>References:</h4>
+                    <ul style={styles.referencesList}>
+                      {w.references.map((ref, j) => (
+                        <li key={j}>{ref}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ))}
+            <button onClick={askAnother} style={{...styles.button, ...styles.askButton}}>
+              Ask Another Query
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Add keyframes for spinner animation */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    backgroundColor: '#f5f5f5',
+    padding: '20px',
+  },
+  pageTitle: {
+    textAlign: 'center',
+    color: '#333',
+    marginBottom: '30px',
+  },
+  content: {
+    maxWidth: '800px',
+    margin: '0 auto',
+    backgroundColor: 'white',
+    padding: '30px',
+    borderRadius: '8px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+  },
+  field: {
+    marginBottom: '20px',
+    position: 'relative',
+  },
+  input: {
+    width: '100%',
+    padding: '12px',
+    fontSize: '16px',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+    boxSizing: 'border-box',
+  },
+  textareaWrapper: {
+    position: 'relative',
+    width: '100%',
+  },
+  textareaWithButton: {
+    width: '100%',
+    minHeight: '120px',
+    padding: '12px',
+    paddingBottom: '45px', // Make room for the attachment button
+    fontSize: '16px',
+    border: '1px solid #ddd',
+    borderRadius: '4px',
+    boxSizing: 'border-box',
+    resize: 'vertical',
+    fontFamily: 'inherit',
+  },
+  attachButton: {
+    position: 'absolute',
+    bottom: '10px',
+    right: '10px',
+    background: '#f0f0f0',
+    border: '1px solid #ddd',
+    borderRadius: '50%',
+    width: '36px',
+    height: '36px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    color: '#666',
+    transition: 'all 0.2s ease',
+    '&:hover': {
+      background: '#e0e0e0',
+      color: '#333',
+    },
+    '&:disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+  },
+  imageCount: {
+    position: 'absolute',
+    top: '-5px',
+    right: '-5px',
+    background: '#ff9900',
+    color: 'white',
+    borderRadius: '50%',
+    width: '18px',
+    height: '18px',
+    fontSize: '11px',
+    fontWeight: 'bold',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dropdown: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    border: '1px solid #ddd',
+    borderTop: 'none',
+    borderRadius: '0 0 4px 4px',
+    maxHeight: '200px',
+    overflowY: 'auto',
+    zIndex: 1000,
+    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+  },
+  dropdownItem: {
+    padding: '10px 12px',
+    cursor: 'pointer',
+    borderBottom: '1px solid #f0f0f0',
+  },
+  selectedCommunity: {
+    marginTop: '8px',
+    padding: '8px 12px',
+    backgroundColor: '#e3f2fd',
+    borderRadius: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  clearBtn: {
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '18px',
+    color: '#666',
+    padding: '0 8px',
+  },
+  imagePreviewsContainer: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '10px',
+    marginTop: '15px',
+  },
+  imagePreviewWrapper: {
+    position: 'relative',
+    width: '100px',
+    height: '100px',
+  },
+  imagePreview: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    borderRadius: '4px',
+    border: '1px solid #ddd',
+  },
+  removeImageBtn: {
+    position: 'absolute',
+    top: '-8px',
+    right: '-8px',
+    backgroundColor: '#ff4444',
+    color: 'white',
+    border: 'none',
+    borderRadius: '50%',
+    width: '24px',
+    height: '24px',
+    cursor: 'pointer',
+    fontSize: '14px',
+  },
+  button: {
+    width: '100%',
+    padding: '14px',
+    backgroundColor: '#ff9900',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    marginTop: '10px',
+  },
+  buttonDisabled: {
+    backgroundColor: '#ccc',
+    cursor: 'not-allowed',
+  },
+  askButton: {
+    marginTop: '20px',
+  },
+  loadingScreen: {
+    textAlign: 'center',
+    padding: '40px 20px',
+  },
+  loadingSpinner: {
+    width: '50px',
+    height: '50px',
+    border: '4px solid #f3f3f3',
+    borderTop: '4px solid #007bff',
+    borderRadius: '50%',
+    margin: '0 auto 20px',
+    animation: 'spin 1s linear infinite',
+  },
+  loadingText: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    margin: '10px 0',
+  },
+  loadingSubtext: {
+    color: '#666',
+  },
+  error: {
+    backgroundColor: '#ffebee',
+    color: '#c62828',
+    padding: '12px',
+    borderRadius: '4px',
+    marginTop: '15px',
+  },
+  solutions: {
+    marginTop: '30px',
+  },
+  solutionCard: {
+    backgroundColor: '#f9f9f9',
+    border: '1px solid #e0e0e0',
+    borderRadius: '8px',
+    padding: '20px',
+    marginBottom: '20px',
+  },
+  workaroundSection: {
+    marginTop: '15px',
+  },
+  referencesList: {
+    listStyleType: 'none',
+    paddingLeft: '0',
+  },
+};

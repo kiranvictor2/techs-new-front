@@ -3,46 +3,42 @@ import "../style.css";
 
 export default function Login({ onLogin }) {
   const handleGoogleLogin = () => {
-    // Redirect user to backend Google OAuth endpoint
     window.location.href = "http://localhost:8000/login/google";
+  };
+
+  const handleEmailLogin = (e) => {
+    e.preventDefault();
+    const email = e.target.email.value.trim();
+    if (email) {
+      localStorage.setItem("userEmail", email);
+      onLogin(email);
+    }
   };
 
   return (
     <div style={styles.container}>
-      <h2 style={{ marginBottom: "20px" }}>Login to TechsNetwork</h2>
+      <h2 style={styles.title}>Login to TechsNetwork</h2>
 
       {/* Google Login Button */}
-      <button onClick={handleGoogleLogin} style={styles.googleBtn}>
+      <button onClick={handleGoogleLogin} style={{ ...btnStyles.base, ...btnStyles.google }}>
         <img
           src="https://developers.google.com/identity/images/g-logo.png"
           alt="Google"
-          style={{ width: "20px", marginRight: "10px" }}
+          style={{ width: "20px" }}
         />
         Sign in with Google
       </button>
 
-      {/* Optional: fallback email login */}
-      <p style={{ marginTop: "20px", fontSize: "14px", color: "#555" }}>
-        Or login with email
-      </p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const email = e.target.email.value.trim();
-          if (email) {
-            localStorage.setItem("userEmail", email);
-            onLogin(email);
-          }
-        }}
-        style={styles.form}
-      >
+      <p style={{ marginTop: "20px", fontSize: "14px", color: "#555" }}>Or login with email</p>
+
+      <form onSubmit={handleEmailLogin} style={styles.form}>
         <input
           name="email"
           type="email"
           placeholder="Enter your email"
           style={styles.input}
         />
-        <button type="submit" style={styles.button}>
+        <button type="submit" style={{ ...btnStyles.base, ...btnStyles.primary }}>
           Login
         </button>
       </form>
@@ -57,7 +53,12 @@ const styles = {
     flexDirection: "column",
     justifyContent: "center",
     alignItems: "center",
-    background: "#f0f0f0",
+    background: "#f9fafb",
+  },
+  title: {
+    marginBottom: "20px",
+    color: "#232f3e",
+    fontFamily: "'Inter', sans-serif",
   },
   form: {
     display: "flex",
@@ -68,25 +69,39 @@ const styles = {
   },
   input: {
     padding: "10px",
-    borderRadius: "8px",
+    borderRadius: "6px",
     border: "1px solid #ccc",
+    fontFamily: "'Inter', sans-serif",
   },
-  button: {
-    padding: "10px",
-    borderRadius: "8px",
-    border: "none",
-    background: "#007bff",
-    color: "white",
-    cursor: "pointer",
-  },
-  googleBtn: {
-    display: "flex",
+};
+
+/* =============================
+   AWS-STYLE BUTTON DEFINITIONS
+   ============================= */
+const btnStyles = {
+  base: {
+    display: "inline-flex",
     alignItems: "center",
-    padding: "10px 20px",
-    borderRadius: "8px",
-    border: "1px solid #ccc",
-    background: "#fff",
+    justifyContent: "center",
+    gap: "8px",
+    fontFamily: "'Inter', sans-serif",
+    fontWeight: 600,
+    borderRadius: "6px",
+    padding: "10px 18px",
+    fontSize: "15px",
+    border: "none",
     cursor: "pointer",
-    fontSize: "16px",
+    transition: "all 0.2s ease",
+    width: "250px",
+  },
+  primary: {
+    backgroundColor: "#ff9900",
+    color: "#fff",
+    boxShadow: "0 2px 6px rgba(255,153,0,0.25)",
+  },
+  google: {
+    backgroundColor: "#fff",
+    color: "#232f3e",
+    border: "1px solid #ccc",
   },
 };
