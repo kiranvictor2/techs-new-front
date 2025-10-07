@@ -109,10 +109,10 @@ export default function Community({ setActivePage }) {
             onClick={() => setShowRequestModal(true)}
             style={styles.requestButton}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#e68900';
+              e.currentTarget.style.backgroundColor = '#4f46e5';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#ff9900';
+              e.currentTarget.style.backgroundColor = '#4f46e5';
             }}
           >
             + Request New Community
@@ -243,7 +243,7 @@ const styles = {
   },
   requestButton: {
     padding: '12px 24px',
-    backgroundColor: '#ff9900',
+    backgroundColor: '#4f46e5',
     color: 'white',
     border: 'none',
     borderRadius: '8px',
@@ -273,7 +273,7 @@ const styles = {
     fontSize: '20px',
   },
   communityAction: {
-    color: '#ff9900',
+    color: '#4f46e5',
     fontSize: '14px',
     margin: 0,
   },
@@ -334,7 +334,7 @@ const styles = {
   submitButton: {
     flex: 1,
     padding: '12px',
-    backgroundColor: '#ff9900',
+    backgroundColor: '#4f46e5',
     color: 'white',
     border: 'none',
     borderRadius: '8px',

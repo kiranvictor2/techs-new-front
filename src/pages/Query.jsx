@@ -623,7 +623,7 @@ const styles = {
   button: {
     width: '100%',
     padding: '14px',
-    backgroundColor: '#ff9900',
+    backgroundColor: '#4502bb',
     color: 'white',
     border: 'none',
     borderRadius: '4px',

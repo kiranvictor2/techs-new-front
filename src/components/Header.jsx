@@ -16,11 +16,11 @@ export default function Header({ onLogout, onMenuToggle }) {
 
       <div className="logo">
         <img
-          src="/techslogo.jpg"
+          src="/logo.png"
           alt="Techs.Network Logo"
           className="logo-icon"
         />
-        <span>TechsNetwork</span>
+        {/* <span>TechsNetwork</span> */}
       </div>
 
       <div className="wallet-info">
