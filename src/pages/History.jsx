@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "../style.css"; // Adjust path to your main CSS file
-
+import BASE_URL from "../config"; // <-- Import base URL
 export default function History() {
   const [queries, setQueries] = useState([]);
   const [selectedQuery, setSelectedQuery] = useState(null);
@@ -21,7 +21,7 @@ export default function History() {
     const token = localStorage.getItem("token"); // ✅ get token
     if (!token) throw new Error("User not authenticated");
 
-    const response = await fetch(`${BACKEND_API_URL}/history`, {
+    const response = await fetch(`${BASE_URL}/history`, {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`, // ✅ attach token

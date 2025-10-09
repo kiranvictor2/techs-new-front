@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-
+import BASE_URL from "../config";
 export default function Query() {
   const [query, setQuery] = useState("");
   const [community, setCommunity] = useState("");
@@ -17,8 +17,9 @@ export default function Query() {
   const dropdownRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const BACKEND_API_URL = "http://localhost:8000/ask";
-  const COMMUNITIES_API_URL = "http://localhost:8000/communitiestty";
+  const BACKEND_API_URL = `${BASE_URL}/ask`;
+  const COMMUNITIES_API_URL = `${BASE_URL}/api/communitiestty`;
+
   const MAX_IMAGES = 5;
 
   // Get community from sessionStorage on mount

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-
+import BASE_URL from "../config";
 export default function Community() {
   const navigate = useNavigate();
   const [communities, setCommunities] = useState([]);
@@ -24,8 +24,9 @@ export default function Community() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `http://127.0.0.1:8000/communities?search=${searchTerm}&page=${pageNum}&limit=50`
-      );
+  `${BASE_URL}/communities?search=${searchTerm}&page=${pageNum}&limit=50`
+);
+
       const data = await response.json();
       
       if (pageNum === 1) {
@@ -120,13 +121,14 @@ export default function Community() {
     setRequestStatus({ type: "", message: "" });
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/request-community", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name: requestName.trim() }),
-      });
+      const response = await fetch(`${BASE_URL}/request-community`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ name: requestName.trim() }),
+});
+
 
       const data = await response.json();
 

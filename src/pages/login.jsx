@@ -1,10 +1,10 @@
 import React from "react";
 import "../style.css";
-
+import BASE_URL from "../config";
 export default function Login({ onLogin }) {
-  const handleGoogleLogin = () => {
-    window.location.href = "http://localhost:8000/login/google";
-  };
+ const handleGoogleLogin = () => {
+  window.location.href = `${BASE_URL}/login/google`;
+};
 
   const handleEmailLogin = (e) => {
     e.preventDefault();

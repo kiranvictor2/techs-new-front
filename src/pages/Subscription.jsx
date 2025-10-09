@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import SubscriptionPlans from "../components/SubscriptionPlans";
+import BASE_URL from "../config";
 export default function Subscription({ setActivePage }) {
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -9,7 +10,8 @@ export default function Subscription({ setActivePage }) {
     const fetchSubscription = async () => {
       try {
         const email = localStorage.getItem("userEmail");
-        const { data } = await axios.get(`http://localhost:8000/subscription?email=${email}`);
+        const { data } = await axios.get(`${BASE_URL}/subscription?email=${email}`);
+
         setSubscription(data);
       } catch (err) {
         console.error("Error fetching subscription:", err);
