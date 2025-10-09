@@ -214,7 +214,7 @@ export default function History() {
     <div className="page">
       <div className="content">
         <div className="history-header">
-          <h1>📜 Query History</h1>
+          <h1>⎗ Query History</h1>
           <p className="history-subtitle">
             {queries.length} {queries.length === 1 ? "query" : "queries"} found
           </p>

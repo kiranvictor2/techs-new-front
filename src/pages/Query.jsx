@@ -12,11 +12,13 @@ export default function Query() {
   const [isLoading, setIsLoading] = useState(false);
   const [showWorkarounds, setShowWorkarounds] = useState(false);
   const [error, setError] = useState("");
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [quotaInfo, setQuotaInfo] = useState({ used: 0, limit: 4 });
   const dropdownRef = useRef(null);
   const fileInputRef = useRef(null);
 
   const BACKEND_API_URL = "http://localhost:8000/ask";
-  const COMMUNITIES_API_URL = "http://localhost:8000/communities";
+  const COMMUNITIES_API_URL = "http://localhost:8000/communitiestty";
   const MAX_IMAGES = 5;
 
   // Get community from sessionStorage on mount
@@ -92,6 +94,13 @@ export default function Query() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
+        
+        // Check if it's a quota exceeded error
+        if (response.status === 403 && errorData?.detail?.includes("Query limit reached")) {
+          setQuotaExceeded(true);
+          throw new Error("QUOTA_EXCEEDED");
+        }
+        
         throw new Error(
           `Backend error ${response.status}: ${errorData?.detail || "Unknown"}`
         );
@@ -102,6 +111,9 @@ export default function Query() {
 
       return data.response;
     } catch (err) {
+      if (err.message === "QUOTA_EXCEEDED") {
+        throw err;
+      }
       throw new Error(`Unable to get AI solutions: ${err.message}`);
     }
   };
@@ -240,6 +252,12 @@ export default function Query() {
       }, 200);
     } catch (err) {
       console.error("Error in processQuery:", err);
+      
+      if (err.message === "QUOTA_EXCEEDED") {
+        // Don't show alert, the quota page will be displayed
+        return;
+      }
+      
       setError(err.message);
       alert(`Error: ${err.message}`);
     } finally {
@@ -264,6 +282,80 @@ export default function Query() {
     setCommunitySearch(communityName);
     setShowDropdown(false);
   };
+
+  const goToSubscription = () => {
+    // Replace with your actual subscription page route
+    window.location.href = "/subscription";
+  };
+
+  // If quota exceeded, show subscription page
+  if (quotaExceeded) {
+    return (
+      <div style={styles.page}>
+        <div style={styles.quotaExceededContainer}>
+          <div style={styles.quotaCard}>
+            <div style={styles.quotaIconContainer}>
+              <svg 
+                width="64" 
+                height="64" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="#ff6b6b"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            
+            <h1 style={styles.quotaTitle}>Query Credits Exhausted</h1>
+            
+            <p style={styles.quotaMessage}>
+              You've reached your query limit for this period. 
+              Upgrade your plan to continue getting AI-powered solutions.
+            </p>
+            
+            <div style={styles.quotaStats}>
+              <div style={styles.statItem}>
+                <span style={styles.statLabel}>Queries Used</span>
+                <span style={styles.statValue}>{quotaInfo.used} / {quotaInfo.limit}</span>
+              </div>
+            </div>
+            
+            <div style={styles.quotaActions}>
+              <button 
+                onClick={goToSubscription}
+                style={styles.upgradeButton}
+              >
+                Upgrade Plan
+              </button>
+              
+              <button 
+                onClick={() => window.location.href = "/"}
+                style={styles.secondaryButton}
+              >
+                Go to Home
+              </button>
+            </div>
+            
+            <div style={styles.quotaFeatures}>
+              <h3 style={styles.featuresTitle}>Premium Benefits:</h3>
+              <ul style={styles.featuresList}>
+                <li>✓ Unlimited queries per month</li>
+                <li>✓ Priority AI response times</li>
+                <li>✓ Access to advanced communities</li>
+                <li>✓ Image analysis support</li>
+                <li>✓ Export solutions as PDF</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.page}>
@@ -506,7 +598,7 @@ const styles = {
     width: '100%',
     minHeight: '120px',
     padding: '12px',
-    paddingBottom: '45px', // Make room for the attachment button
+    paddingBottom: '45px',
     fontSize: '16px',
     border: '1px solid #ddd',
     borderRadius: '4px',
@@ -529,14 +621,6 @@ const styles = {
     cursor: 'pointer',
     color: '#666',
     transition: 'all 0.2s ease',
-    '&:hover': {
-      background: '#e0e0e0',
-      color: '#333',
-    },
-    '&:disabled': {
-      opacity: 0.5,
-      cursor: 'not-allowed',
-    },
   },
   imageCount: {
     position: 'absolute',
@@ -683,5 +767,106 @@ const styles = {
   referencesList: {
     listStyleType: 'none',
     paddingLeft: '0',
+  },
+  // Quota Exceeded Styles
+  quotaExceededContainer: {
+    minHeight: '80vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+  },
+  quotaCard: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    padding: '40px',
+    maxWidth: '600px',
+    width: '100%',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+    textAlign: 'center',
+  },
+  quotaIconContainer: {
+    marginBottom: '20px',
+    display: 'flex',
+    justifyContent: 'center',
+  },
+  quotaTitle: {
+    fontSize: '28px',
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: '15px',
+  },
+  quotaMessage: {
+    fontSize: '16px',
+    color: '#666',
+    lineHeight: '1.6',
+    marginBottom: '30px',
+  },
+  quotaStats: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+    padding: '20px',
+    marginBottom: '30px',
+  },
+  statItem: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: '14px',
+    color: '#666',
+    fontWeight: '500',
+  },
+  statValue: {
+    fontSize: '20px',
+    fontWeight: 'bold',
+    color: '#ff6b6b',
+  },
+  quotaActions: {
+    display: 'flex',
+    gap: '15px',
+    marginBottom: '30px',
+  },
+  upgradeButton: {
+    flex: 1,
+    padding: '14px 24px',
+    backgroundColor: '#4502bb',
+    color: 'white',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'background-color 0.3s',
+  },
+  secondaryButton: {
+    flex: 1,
+    padding: '14px 24px',
+    backgroundColor: 'transparent',
+    color: '#4502bb',
+    border: '2px solid #4502bb',
+    borderRadius: '6px',
+    fontSize: '16px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    transition: 'all 0.3s',
+  },
+  quotaFeatures: {
+    textAlign: 'left',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+    padding: '20px',
+  },
+  featuresTitle: {
+    fontSize: '18px',
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: '15px',
+  },
+  featuresList: {
+    listStyleType: 'none',
+    paddingLeft: '0',
+    margin: '0',
   },
 };

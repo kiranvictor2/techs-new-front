@@ -806,7 +806,7 @@ body {
     }
 
     .logo-icon {
-        width: 35px;
+        width: 150px;
         height: 35px;
     }
 
@@ -905,7 +905,7 @@ body {
     }
 
     .header {
-        height: 55px;
+        height: 100px;
         padding: 0 10px;
     }
 
@@ -914,7 +914,7 @@ body {
     }
 
     .logo-icon {
-        width: 30px;
+        width: 150px;
         height: 30px;
         font-size: 12px;
     }

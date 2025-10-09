@@ -1,33 +1,113 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
-export default function Community({ setActivePage }) {
+export default function Community() {
+  const navigate = useNavigate();
   const [communities, setCommunities] = useState([]);
   const [search, setSearch] = useState("");
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [requestName, setRequestName] = useState("");
   const [requestStatus, setRequestStatus] = useState({ type: "", message: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  
+  // Pagination states
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const loaderRef = useRef(null);
 
-  // Fetch communities when search changes
+  // Fetch communities with pagination
+  const fetchCommunities = useCallback(async (pageNum, searchTerm) => {
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/communities?search=${searchTerm}&page=${pageNum}&limit=50`
+      );
+      const data = await response.json();
+      
+      if (pageNum === 1) {
+        setCommunities(data.communities || []);
+      } else {
+        setCommunities(prev => [...prev, ...(data.communities || [])]);
+      }
+      
+      setHasMore(data.hasMore || false);
+      
+    } catch (error) {
+      console.error("Error fetching communities:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading]);
+
+  // Reset and fetch when search changes
   useEffect(() => {
-    const fetchCommunities = async () => {
-      try {
-        const response = await fetch(`http://127.0.0.1:8000/communities?search=${search}`);
-        const data = await response.json();
-        setCommunities(data);
-      } catch (error) {
-        console.error("Error fetching communities:", error);
+    setPage(1);
+    setHasMore(true);
+    setCommunities([]);
+    fetchCommunities(1, search);
+  }, [search]);
+
+  // Show/hide scroll to top button based on scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 400) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
       }
     };
 
-    fetchCommunities();
-  }, [search]);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Set up intersection observer for infinite scrolling
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && hasMore && !isLoading) {
+          setPage(prev => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    const currentLoader = loaderRef.current;
+    if (currentLoader) {
+      observer.observe(currentLoader);
+    }
+
+    return () => {
+      if (currentLoader) {
+        observer.unobserve(currentLoader);
+      }
+    };
+  }, [hasMore, isLoading]);
+
+  // Fetch more communities when page changes (but not on initial load)
+  useEffect(() => {
+    if (page > 1) {
+      fetchCommunities(page, search);
+    }
+  }, [page]);
 
   const selectCommunity = (name) => {
-    // Store selected community in sessionStorage
+    // Store in sessionStorage for the Query component to read
     sessionStorage.setItem('selectedCommunity', name);
-    // Navigate to query page using the setActivePage prop
-    setActivePage('query');
+    // Navigate to query page
+    navigate('/query');
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
   };
 
   const handleRequestCommunity = async () => {
@@ -61,13 +141,13 @@ export default function Community({ setActivePage }) {
             type: "success", 
             message: `Community "${requestName}" has been requested successfully!` 
           });
-          // Refresh the communities list
-          const refreshResponse = await fetch(`http://127.0.0.1:8000/communities?search=${search}`);
-          const refreshData = await refreshResponse.json();
-          setCommunities(refreshData);
+          // Refresh the list
+          setPage(1);
+          setHasMore(true);
+          setCommunities([]);
+          fetchCommunities(1, search);
         }
         
-        // Clear form after 2 seconds on success
         setTimeout(() => {
           setRequestName("");
           if (data.created) {
@@ -109,7 +189,7 @@ export default function Community({ setActivePage }) {
             onClick={() => setShowRequestModal(true)}
             style={styles.requestButton}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#4f46e5';
+              e.currentTarget.style.backgroundColor = '#5b52f5';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = '#4f46e5';
@@ -120,29 +200,50 @@ export default function Community({ setActivePage }) {
         </div>
 
         <div style={styles.communityGrid}>
-          {communities.length > 0 ? (
-            communities.map((c, i) => (
-              <div
-                key={i}
-                style={styles.communityCard}
-                onClick={() => selectCommunity(c.name)}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-5px)';
-                  e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-                }}
-              >
-                <h3 style={styles.communityName}>{c.name}</h3>
-                <p style={styles.communityAction}>Click to ask a question →</p>
-              </div>
-            ))
-          ) : (
-            <p style={styles.noResults}>No communities found.</p>
-          )}
+          {communities.map((c, i) => (
+            <div
+              key={`${c.name}-${i}`}
+              style={styles.communityCard}
+              onClick={() => selectCommunity(c.name)}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-5px)';
+                e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+              }}
+            >
+              <h3 style={styles.communityName}>{c.name}</h3>
+              <p style={styles.communityAction}>Click to ask a question →</p>
+            </div>
+          ))}
         </div>
+
+        {/* Loading indicator */}
+        {isLoading && (
+          <div style={styles.loadingContainer}>
+            <div style={styles.spinner}></div>
+            <p style={styles.loadingText}>Loading more communities...</p>
+          </div>
+        )}
+
+        {/* Intersection observer target - this triggers loading more */}
+        {hasMore && !isLoading && communities.length > 0 && (
+          <div ref={loaderRef} style={styles.loadTrigger}>
+            {/* This empty div triggers the next page load */}
+          </div>
+        )}
+
+        {/* No results message */}
+        {!isLoading && communities.length === 0 && (
+          <p style={styles.noResults}>No communities found.</p>
+        )}
+
+        {/* End of list indicator */}
+        {!hasMore && communities.length > 0 && (
+          <p style={styles.endMessage}>You've reached the end of the list</p>
+        )}
       </div>
 
       {/* Request Community Modal */}
@@ -204,6 +305,24 @@ export default function Community({ setActivePage }) {
           </div>
         </div>
       )}
+
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          style={styles.scrollTopButton}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#5b52f5';
+            e.currentTarget.style.transform = 'scale(1.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#4f46e5';
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          ↑
+        </button>
+      )}
     </div>
   );
 }
@@ -213,6 +332,7 @@ const styles = {
     minHeight: '100vh',
     backgroundColor: '#f5f5f5',
     padding: '20px',
+    paddingBottom: '100px',
   },
   pageTitle: {
     textAlign: 'center',
@@ -257,6 +377,7 @@ const styles = {
     gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
     gap: '20px',
     padding: '0 20px',
+    marginBottom: '30px',
   },
   communityCard: {
     backgroundColor: 'white',
@@ -271,6 +392,7 @@ const styles = {
     color: '#333',
     margin: '0 0 10px 0',
     fontSize: '20px',
+    wordBreak: 'break-word',
   },
   communityAction: {
     color: '#4f46e5',
@@ -280,9 +402,38 @@ const styles = {
   noResults: {
     textAlign: 'center',
     color: '#666',
-    gridColumn: '1 / -1',
     padding: '40px',
     fontSize: '18px',
+  },
+  loadingContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '40px',
+  },
+  spinner: {
+    width: '40px',
+    height: '40px',
+    border: '4px solid #e0e0e0',
+    borderTop: '4px solid #4f46e5',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
+  loadingText: {
+    marginTop: '15px',
+    color: '#666',
+    fontSize: '16px',
+  },
+  loadTrigger: {
+    height: '50px',
+    width: '100%',
+  },
+  endMessage: {
+    textAlign: 'center',
+    color: '#999',
+    padding: '30px',
+    fontSize: '14px',
+    fontStyle: 'italic',
   },
   modalOverlay: {
     position: 'fixed',
@@ -354,4 +505,34 @@ const styles = {
     fontWeight: 'bold',
     cursor: 'pointer',
   },
+  scrollTopButton: {
+    position: 'fixed',
+    bottom: '30px',
+    right: '30px',
+    width: '56px',
+    height: '56px',
+    backgroundColor: '#4f46e5',
+    color: 'white',
+    border: 'none',
+    borderRadius: '50%',
+    fontSize: '24px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 4px 12px rgba(79, 70, 229, 0.4)',
+    transition: 'all 0.3s ease',
+    zIndex: 999,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 };
+
+// Add CSS animation for spinner
+const styleSheet = document.createElement("style");
+styleSheet.textContent = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+document.head.appendChild(styleSheet);
