@@ -18,7 +18,7 @@ export default function History() {
   try {
     setIsLoading(true);
 
-    const token = localStorage.getItem("token"); // ✅ get token
+    const token = localStorage.getItem("authToken"); // ✅ get token
     if (!token) throw new Error("User not authenticated");
 
     const response = await fetch(`${BASE_URL}/history`, {

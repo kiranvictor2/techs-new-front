@@ -2,30 +2,41 @@ import React from "react";
 import BASE_URL from "../config";
 export default function SubscriptionPlans() {
   const handleSubscribe = async (plan) => {
-    try {
-      const amount = plan === "monthly" ? 9.99 : 99;
+  try {
+    const amount = plan === "monthly" ? 9.99 : 99;
 
-      // Call FastAPI endpoint using fetch
-      const response = await fetch(`${BASE_URL}/create-payment-intent`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ amount }),
-});
+    // Get token from localStorage
+    const token = localStorage.getItem("authToken"); // make sure this is where you store the JWT
 
-
-      if (!response.ok) {
-        throw new Error("Payment initialization failed");
-      }
-
-      const data = await response.json();
-
-      // Redirect user to Stripe Checkout using the URL
-      window.location.href = data.url;
-    } catch (err) {
-      console.error("Payment failed:", err);
-      alert("Payment initialization failed. Please try again.");
+    if (!token) {
+      alert("You must be logged in to subscribe.");
+      return;
     }
-  };
+
+    // Call FastAPI endpoint using fetch with token
+    const response = await fetch(`${BASE_URL}/create-payment-intent`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`  // ✅ Pass the token
+      },
+      body: JSON.stringify({ amount }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Payment initialization failed");
+    }
+
+    const data = await response.json();
+
+    // Redirect user to Stripe Checkout using the URL
+    window.location.href = data.url;
+  } catch (err) {
+    console.error("Payment failed:", err);
+    alert("Payment initialization failed. Please try again.");
+  }
+};
+
 
   const styles = {
     pricingSection: {

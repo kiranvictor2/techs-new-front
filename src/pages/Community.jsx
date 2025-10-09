@@ -112,67 +112,71 @@ export default function Community() {
   };
 
   const handleRequestCommunity = async () => {
-    if (!requestName.trim()) {
-      setRequestStatus({ type: "error", message: "Please enter a community name" });
-      return;
-    }
+  if (!requestName.trim()) {
+    setRequestStatus({ type: "error", message: "Please enter a community name" });
+    return;
+  }
 
-    setIsSubmitting(true);
-    setRequestStatus({ type: "", message: "" });
+  setIsSubmitting(true);
+  setRequestStatus({ type: "", message: "" });
 
-    try {
-      const response = await fetch(`${BASE_URL}/request-community`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({ name: requestName.trim() }),
-});
+  try {
+    // Get token from localStorage
+    const token = localStorage.getItem("authToken");
 
+    const response = await fetch(`${BASE_URL}/request-community`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`, // <-- include token here
+      },
+      body: JSON.stringify({ name: requestName.trim() }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (response.ok) {
-        if (data.exists) {
-          setRequestStatus({ 
-            type: "info", 
-            message: `Community "${requestName}" already exists!` 
-          });
-        } else {
-          setRequestStatus({ 
-            type: "success", 
-            message: `Community "${requestName}" has been requested successfully!` 
-          });
-          // Refresh the list
-          setPage(1);
-          setHasMore(true);
-          setCommunities([]);
-          fetchCommunities(1, search);
-        }
-        
-        setTimeout(() => {
-          setRequestName("");
-          if (data.created) {
-            setShowRequestModal(false);
-            setRequestStatus({ type: "", message: "" });
-          }
-        }, 2000);
+    if (response.ok) {
+      if (data.exists) {
+        setRequestStatus({ 
+          type: "info", 
+          message: `Community "${requestName}" already exists!` 
+        });
       } else {
         setRequestStatus({ 
-          type: "error", 
-          message: data.detail || "Failed to request community" 
+          type: "success", 
+          message: `Community "${requestName}" has been requested successfully!` 
         });
+        // Refresh the list
+        setPage(1);
+        setHasMore(true);
+        setCommunities([]);
+        fetchCommunities(1, search);
       }
-    } catch (error) {
-      console.error("Error requesting community:", error);
+      
+      setTimeout(() => {
+        setRequestName("");
+        if (data.created) {
+          setShowRequestModal(false);
+          setRequestStatus({ type: "", message: "" });
+        }
+      }, 2000);
+    } else {
       setRequestStatus({ 
         type: "error", 
-        message: "Network error. Please try again." 
+        message: data.detail || "Failed to request community" 
       });
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+  } catch (error) {
+    console.error("Error requesting community:", error);
+    setRequestStatus({ 
+      type: "error", 
+      message: "Network error. Please try again." 
+    });
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   return (
     <div style={styles.page}>

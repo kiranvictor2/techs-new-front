@@ -1,16 +1,18 @@
 import React from "react";
 import "../style.css";
 import BASE_URL from "../config";
+
 export default function Login({ onLogin }) {
- const handleGoogleLogin = () => {
-  window.location.href = `${BASE_URL}/login/google`;
-};
+  const handleGoogleLogin = () => {
+    window.location.href = `${BASE_URL}/login/google`;
+  };
 
   const handleEmailLogin = (e) => {
     e.preventDefault();
     const email = e.target.email.value.trim();
     if (email) {
-      localStorage.setItem("userEmail", email);
+      // Store email temporarily if needed
+      sessionStorage.setItem("userEmail", email);
       onLogin(email);
     }
   };
@@ -75,9 +77,6 @@ const styles = {
   },
 };
 
-/* =============================
-   AWS-STYLE BUTTON DEFINITIONS
-   ============================= */
 const btnStyles = {
   base: {
     display: "inline-flex",

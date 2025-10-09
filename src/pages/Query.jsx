@@ -17,8 +17,8 @@ export default function Query() {
   const dropdownRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const BACKEND_API_URL = `${BASE_URL}/ask`;
-  const COMMUNITIES_API_URL = `${BASE_URL}/api/communitiestty`;
+const BACKEND_API_URL = `${BASE_URL}/ask`;
+const COMMUNITIES_API_URL = `${BASE_URL}/communitiestty`;
 
   const MAX_IMAGES = 5;
 
@@ -74,6 +74,7 @@ export default function Query() {
   }, []);
 
   const callOpenAI = async (query, community, imageFiles) => {
+    console.log("dnjnknfkjwekjew",localStorage.getItem("userEmail"))
     try {
       const formData = new FormData();
       formData.append("query", query);
@@ -88,10 +89,14 @@ export default function Query() {
         formData.append("images", file);
       });
 
+      const token = localStorage.getItem("authToken"); // or "token" if that's your key
+
       const response = await fetch(BACKEND_API_URL, {
-        method: "POST",
-        body: formData,
-      });
+      method: "POST",
+  headers: token ? { Authorization: `Bearer ${token}` } : {}, // add token header
+  body: formData,
+});
+
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);

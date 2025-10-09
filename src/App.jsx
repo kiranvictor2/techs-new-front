@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import Home from "./pages/Home";
@@ -8,15 +9,76 @@ import Query from "./pages/Query";
 import Community from "./pages/Community";
 import History from "./pages/History";
 import Subscription from "./pages/Subscription";
+import Login from "./pages/login";
+import AuthSuccess from "./pages/AuthSuccess";
+
+// Protected Route Component
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        height: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: "#f9fafb"
+      }}>
+        <p style={{ color: "#232f3e", fontSize: "16px", fontWeight: "600" }}>
+          Loading...
+        </p>
+      </div>
+    );
+  }
+
+  return user ? children : <Navigate to="/" replace />;
+}
+
+// Login Route Component (redirects to home if already logged in)
+function LoginRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{
+        height: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        background: "#f9fafb"
+      }}>
+        <p style={{ color: "#232f3e", fontSize: "16px", fontWeight: "600" }}>
+          Loading...
+        </p>
+      </div>
+    );
+  }
+
+  return user ? <Navigate to="/home" replace /> : children;
+}
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   // Toggle sidebar for mobile
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   // Close sidebar
   const closeSidebar = () => setIsSidebarOpen(false);
+
+  // Logout handler
+  const handleLogout = () => {
+    console.log("Logging out user...");
+    
+    // Use the logout function from AuthContext (clears localStorage)
+    logout();
+    
+    // Redirect to login page
+    navigate("/", { replace: true });
+  };
 
   // Close sidebar on window resize if viewport becomes larger
   useEffect(() => {
@@ -52,21 +114,44 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <Header onMenuToggle={toggleSidebar} />
-      <div className="container">
-        <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
-        <div className="main-content">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/wallet" element={<Wallet />} />
-            <Route path="/query" element={<Query />} />
-            <Route path="/community" element={<Community />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/subscription" element={<Subscription />} />
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </div>
-      </div>
+      <Routes>
+        {/* Public routes */}
+        <Route 
+          path="/" 
+          element={
+            <LoginRoute>
+              <Login />
+            </LoginRoute>
+          } 
+        />
+        <Route path="/auth-success" element={<AuthSuccess />} />
+
+        {/* Protected routes with layout */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <>
+                <Header onMenuToggle={toggleSidebar} onLogout={handleLogout} />
+                <div className="container">
+                  <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
+                  <div className="main-content">
+                    <Routes>
+                      <Route path="/home" element={<Home />} />
+                      <Route path="/wallet" element={<Wallet />} />
+                      <Route path="/query" element={<Query />} />
+                      <Route path="/community" element={<Community />} />
+                      <Route path="/history" element={<History />} />
+                      <Route path="/subscription" element={<Subscription />} />
+                      <Route path="*" element={<Navigate to="/home" replace />} />
+                    </Routes>
+                  </div>
+                </div>
+              </>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
     </div>
   );
 }

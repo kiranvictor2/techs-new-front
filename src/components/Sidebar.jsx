@@ -5,7 +5,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const location = useLocation();
 
   const navItems = [
-    { path: "/", label: "Home", icon: "⌂" },
+    { path: "/home", label: "Home", icon: "⌂" },
     { path: "/wallet", label: "Wallet", icon: "⊡" },
     { path: "/query", label: "Ask a Query", icon: "?" },
     { path: "/community", label: "Community", icon: "⚉" },
