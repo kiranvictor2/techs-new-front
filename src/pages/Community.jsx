@@ -330,7 +330,7 @@ export default function Community() {
 const styles = {
   page: {
     minHeight: '100vh',
-    backgroundColor: '#f5f5f5',
+    // backgroundColor: '#f5f5f5',
     padding: '20px',
     paddingBottom: '100px',
   },
