@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-
+import BASE_URL from "../config";
 export default function Header({ onLogout, onMenuToggle }) {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,8 +17,8 @@ export default function Header({ onLogout, onMenuToggle }) {
       }
 
       const response = await fetch(
-        `http://localhost:8000/user/profile/token?token=${token}`
-      );
+  `${BASE_URL}/user/profile/token?token=${token}`
+);
 
       if (response.ok) {
         const data = await response.json();

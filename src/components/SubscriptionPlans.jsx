@@ -1,18 +1,17 @@
 import React from "react";
-
+import BASE_URL from "../config";
 export default function SubscriptionPlans() {
   const handleSubscribe = async (plan) => {
     try {
       const amount = plan === "monthly" ? 9.99 : 99;
 
       // Call FastAPI endpoint using fetch
-      const response = await fetch("http://localhost:8000/create-payment-intent", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ amount }),
-      });
+      const response = await fetch(`${BASE_URL}/create-payment-intent`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ amount }),
+});
+
 
       if (!response.ok) {
         throw new Error("Payment initialization failed");
