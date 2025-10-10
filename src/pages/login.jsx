@@ -31,15 +31,15 @@ export default function Login({ onLogin }) {
         Sign in with Google
       </button>
 
-      <p style={{ marginTop: "20px", fontSize: "14px", color: "#555" }}>Or login with email</p>
+      {/* <p style={{ marginTop: "20px", fontSize: "14px", color: "#555" }}>Or login with email</p> */}
 
       <form onSubmit={handleEmailLogin} style={styles.form}>
-        <input
+        {/* <input
           name="email"
           type="email"
           placeholder="Enter your email"
           style={styles.input}
-        />
+        /> */}
         <button type="submit" style={{ ...btnStyles.base, ...btnStyles.primary }}>
           Login
         </button>
@@ -94,7 +94,7 @@ const btnStyles = {
     width: "250px",
   },
   primary: {
-    backgroundColor: "#ff9900",
+    backgroundColor: "#4f46e5",
     color: "#fff",
     boxShadow: "0 2px 6px rgba(255,153,0,0.25)",
   },
